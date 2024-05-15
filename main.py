@@ -11,19 +11,21 @@ import torchvision.transforms as transforms
 
 import os
 import argparse
+import random
 
 from utils import progress_bar
 import resnet18k
 
+
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
 parser.add_argument('--resume', default=False, type=bool,
                     help='resume from checkpoint')
 parser.add_argument('--batch_size', default=128, type=int,
                     help='batch size')
 parser.add_argument('--model', default="resnet18k", type=str,
                     help='specify model name')
-parser.add_argument('--optimizer', default="sgd", type=str,
+parser.add_argument('--optimizer', default="adam", type=str,
                     help='specify optimizer')
 parser.add_argument('--noise', default=0.0, type=float,
                     help='data noise ratio')
@@ -40,41 +42,55 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
-# Data
-print('==> Preparing data..')
-transform_train = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-])
+def prepare_dataset():
+    # Data
+    print('==> Preparing data..')
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
 
-transform_test = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-])
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
 
-if args.data == 'cifar10':
-    trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+    if args.data == 'cifar10':
+        trainset = torchvision.datasets.CIFAR10(
+            root='./data', train=True, download=True, transform=transform_train)
+        new_len = int(args.data_size*len(trainset))
+        if args.data_size < 1.0:
+            trainset, _ = torch.utils.data.random_split(trainset, [new_len, len(trainset)-new_len])
+        if args.noise > 0.0:
+            print('hi')
+            noise_len = int(len(trainset) * args.noise)
+            index = torch.randperm(len(trainset))[:noise_len]
+            for i in index:
+                noise_label = 9 - trainset.targets[i]
+                trainset.targets[i] = noise_label
 
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(
-        testset, batch_size=100, shuffle=False, num_workers=2)
-    
-elif args.data == 'cifar100':
-    trainset = torchvision.datasets.CIFAR100(
-        root='./data', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+        trainloader = torch.utils.data.DataLoader(
+            trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
-    testset = torchvision.datasets.CIFAR100(
-        root='./data', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(
-        testset, batch_size=100, shuffle=False, num_workers=2)
+        testset = torchvision.datasets.CIFAR10(
+            root='./data', train=False, download=True, transform=transform_test)
+        testloader = torch.utils.data.DataLoader(
+            testset, batch_size=100, shuffle=False, num_workers=2)
+        
+    elif args.data == 'cifar100':
+        trainset = torchvision.datasets.CIFAR100(
+            root='./data', train=True, download=True, transform=transform_train)
+        trainloader = torch.utils.data.DataLoader(
+            trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+
+        testset = torchvision.datasets.CIFAR100(
+            root='./data', train=False, download=True, transform=transform_test)
+        testloader = torch.utils.data.DataLoader(
+            testset, batch_size=100, shuffle=False, num_workers=2)
+        
+    return trainloader, testloader
 
 # Model
 print('==> Building model..')
@@ -99,8 +115,11 @@ criterion = nn.CrossEntropyLoss()
 if args.optimizer == "sgd":
     optimizer = optim.SGD(net.parameters(), lr=args.lr,
                           momentum=0.9, weight_decay=5e-4)
-    epoch = 5
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+    epoch = 40000
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+elif args.optimizer == "adam":
+    optimizer = optim.Adam(net.parameters(), lr=args.lr)
+    epoch = 40000
 
 train_loss_history = []
 train_accuracy_history = []
@@ -175,10 +194,12 @@ def test(epoch):
         best_acc = acc
 
 if __name__ == "__main__":
+    trainloader, testloader = prepare_dataset()
     for epoch in range(start_epoch, start_epoch+epoch):
         train(epoch)
         test(epoch)
-        scheduler.step()
+        if args.optimizer=='sgd':
+            scheduler.step()
     
     torch.save({
     'train_loss_history': train_loss_history,
