@@ -33,10 +33,13 @@ parser.add_argument('--data_size', default=1.0, type=float,
                     help='data size ratio')
 parser.add_argument('--data', default="cifar10", type=str,
                     help='specify dataset name')
+parser.add_argument('--w_param', default=64, type=int,
+                    help='layer width parameter')
 
 args = parser.parse_args()
 epoch = 1
 main_path = f'{args.model}_{args.data}_{args.optimizer}/noise-{args.noise}_datasize-{args.data_size}'
+num_classes = 10
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
@@ -64,7 +67,6 @@ def prepare_dataset():
         if args.data_size < 1.0:
             trainset, _ = torch.utils.data.random_split(trainset, [new_len, len(trainset)-new_len])
         if args.noise > 0.0:
-            print('hi')
             noise_len = int(len(trainset) * args.noise)
             index = torch.randperm(len(trainset))[:noise_len]
             for i in index:
@@ -95,7 +97,10 @@ def prepare_dataset():
 # Model
 print('==> Building model..')
 if args.model == "resnet18k":
-    net = resnet18k.make_resnet18k()
+    net = resnet18k.make_resnet18k(c = args.w_param, num_classes = num_classes)
+    net = net.to(device)
+elif args.model == "mcnn":
+    net = mcnn.make_cnn(c = args.w_param, num_classes = num_classes)
     net = net.to(device)
 
 if device == 'cuda':
@@ -113,8 +118,7 @@ if args.resume==True:
 
 criterion = nn.CrossEntropyLoss()
 if args.optimizer == "sgd":
-    optimizer = optim.SGD(net.parameters(), lr=args.lr,
-                          momentum=0.9, weight_decay=5e-4)
+    optimizer = optim.SGD(net.parameters(), lr=0.1, weight_decay=5e-4)
     epoch = 40000
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 elif args.optimizer == "adam":
