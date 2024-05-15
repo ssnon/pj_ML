@@ -15,6 +15,7 @@ import random
 
 from utils import progress_bar
 import resnet18k
+import mcnn
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -38,7 +39,7 @@ parser.add_argument('--w_param', default=64, type=int,
 
 args = parser.parse_args()
 epoch = 1
-main_path = f'{args.model}_{args.data}_{args.optimizer}/noise-{args.noise}_datasize-{args.data_size}'
+main_path = f'{args.model}_{args.data}_{args.optimizer}/noise-{args.noise}_datasize-{args.data_size}_w_param-{args.w_param}'
 num_classes = 10
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
