@@ -98,7 +98,7 @@ def prepare_dataset():
 # Model
 print('==> Building model..')
 if args.model == "resnet18k":
-    net = resnet18k.make_resnet18k(c = args.w_param, num_classes = num_classes)
+    net = resnet18k.make_resnet18k(k = args.w_param, num_classes = num_classes)
     net = net.to(device)
 elif args.model == "mcnn":
     net = mcnn.make_cnn(c = args.w_param, num_classes = num_classes)
