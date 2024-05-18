@@ -71,7 +71,7 @@ def prepare_dataset():
             noise_len = int(len(trainset) * args.noise)
             index = torch.randperm(len(trainset))[:noise_len]
             for i in index:
-                noise_label = 9 - trainset.targets[i]
+                noise_label = (trainset.targets[i]-9) * (-1)
                 trainset.targets[i] = noise_label
 
         trainloader = torch.utils.data.DataLoader(
@@ -85,6 +85,17 @@ def prepare_dataset():
     elif args.data == 'cifar100':
         trainset = torchvision.datasets.CIFAR100(
             root='./data', train=True, download=True, transform=transform_train)
+        
+        new_len = int(args.data_size*len(trainset))
+        if args.data_size < 1.0:
+            trainset, _ = torch.utils.data.random_split(trainset, [new_len, len(trainset)-new_len])
+        if args.noise > 0.0:
+            noise_len = int(len(trainset) * args.noise)
+            index = torch.randperm(len(trainset))[:noise_len]
+            for i in index:
+                noise_label = (trainset.targets[i]-9) * (-1)
+                trainset.targets[i] = noise_label
+
         trainloader = torch.utils.data.DataLoader(
             trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
@@ -98,7 +109,7 @@ def prepare_dataset():
 # Model
 print('==> Building model..')
 if args.model == "resnet18k":
-    net = resnet18k.make_resnet18k(k = args.w_param, num_classes = num_classes)
+    net = resnet18k.make_resnet18k(c = args.w_param, num_classes = num_classes)
     net = net.to(device)
 elif args.model == "mcnn":
     net = mcnn.make_cnn(c = args.w_param, num_classes = num_classes)
@@ -120,11 +131,11 @@ if args.resume==True:
 criterion = nn.CrossEntropyLoss()
 if args.optimizer == "sgd":
     optimizer = optim.SGD(net.parameters(), lr=0.1, weight_decay=5e-4)
-    epoch = 40000
+    epoch = 2000
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 elif args.optimizer == "adam":
     optimizer = optim.Adam(net.parameters(), lr=args.lr)
-    epoch = 40000
+    epoch = 2000
 
 train_loss_history = []
 train_accuracy_history = []
@@ -198,6 +209,13 @@ def test(epoch):
         torch.save(state, os.path.join(main_path,'./checkpoint/ckpt.pth'))
         best_acc = acc
 
+        torch.save({
+        'train_loss_history': train_loss_history,
+        'train_accuracy_history': train_accuracy_history,
+        'test_loss_history': test_loss_history,
+        'test_accuracy_history': test_accuracy_history,
+        }, os.path.join(main_path,'history.pth'))
+
 if __name__ == "__main__":
     trainloader, testloader = prepare_dataset()
     for epoch in range(start_epoch, start_epoch+epoch):
@@ -205,10 +223,3 @@ if __name__ == "__main__":
         test(epoch)
         if args.optimizer=='sgd':
             scheduler.step()
-    
-    torch.save({
-    'train_loss_history': train_loss_history,
-    'train_accuracy_history': train_accuracy_history,
-    'test_loss_history': test_loss_history,
-    'test_accuracy_history': test_accuracy_history,
-    }, os.path.join(main_path,'history.pth'))
