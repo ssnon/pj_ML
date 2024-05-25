@@ -29,7 +29,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 model_checkpoint = "bert-base-uncased"
 lr = 1e-4
 batch_size = 16
-num_epochs = 500
+num_epochs = 1000
 load_model=False
 #output_dir = 'kwwww/test_16_2000'
 r_=1
@@ -130,11 +130,11 @@ def init_weights(module):
         module.weight.data.fill_(1.0)
     if isinstance(module, nn.Linear) and module.bias is not None:
         module.bias.data.zero_()
-'''
+
 print(":====> reinit")
 model.apply(init_weights)
-'''
-model.load_state_dict(torch.load(load_path))
+
+#model.load_state_dict(torch.load(load_path))
 
 class CustumCallback:
     def __init__(self, model):
